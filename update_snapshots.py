@@ -6,6 +6,7 @@ and deploy to the server.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.parse
@@ -53,6 +54,36 @@ def validate_snapshots(snapshots, questions):
             raise RuntimeError(f"{key}: 缺少面板数据区块 {', '.join(missing)}")
         if payload.get("capture_skips", {}).get("active_count", 0):
             raise RuntimeError(f"{key}: 仍有未处理采集异常，已停止发布。")
+        normalize_name = lambda value: re.sub(
+            r"[\s\-—_·•|｜/（）()]+", "", str(value or "")
+        ).casefold()
+        media_names = {
+            normalize_name(item.get("name"))
+            for item in payload.get("by_media", [])
+            if normalize_name(item.get("name"))
+        }
+        brand_names = {
+            normalize_name(item.get("name"))
+            for item in payload.get("products", {}).get("by_brand", [])
+            if normalize_name(item.get("name"))
+        }
+        conflicts = sorted(
+            media_name
+            for media_name in media_names
+            if any(
+                len(brand_name) >= 3
+                and (
+                    media_name == brand_name
+                    or brand_name in media_name
+                    or media_name in brand_name
+                )
+                for brand_name in brand_names
+            )
+        )
+        if conflicts:
+            raise RuntimeError(
+                f"{key}: 媒体与品牌分类发生冲突 {', '.join(conflicts)}，已停止发布。"
+            )
         if key == "__all__":
             continue
         if payload.get("products", {}).get("total_product_runs", 0) < payload.get("total_runs", 0):
