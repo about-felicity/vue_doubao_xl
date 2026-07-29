@@ -50,6 +50,18 @@ sudo bash bind_customxl_https.sh
 
 <https://1any.top/customXL/>
 
+## 关闭 1any.top 上的其他路径
+
+确认 `/customXL/` 已正常访问后执行：
+
+```bash
+sudo bash lock_1any_to_customxl.sh
+```
+
+脚本会让 `1any.top` 只允许 `/customXL/`，并关闭 `/`、`/agent`、
+`/agent-api/`、`/api/`、`/data/videos/` 等其他域名入口。后台进程不会被
+删除或停止，便于需要时恢复；Nginx 配置会先备份，验证失败会自动回滚。
+
 可覆盖参数：
 
 ```bash
