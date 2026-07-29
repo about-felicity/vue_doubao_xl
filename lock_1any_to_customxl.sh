@@ -42,7 +42,7 @@ rollback() {
     echo "限制失败，正在恢复原配置..."
     cp -a -- "${BACKUP_FILE}" "${NGINX_CONF}" || true
     nginx -t -c "${NGINX_CONF}" >/dev/null 2>&1 || true
-    systemctl reload nginx.service >/dev/null 2>&1 || true
+    systemctl restart nginx.service >/dev/null 2>&1 || true
   fi
   exit "${exit_code}"
 }
@@ -130,7 +130,7 @@ PY
 
 STATE_CHANGED=1
 nginx -t -c "${NGINX_CONF}"
-systemctl reload nginx.service
+systemctl restart nginx.service
 
 echo "验证保留路径..."
 custom_code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
