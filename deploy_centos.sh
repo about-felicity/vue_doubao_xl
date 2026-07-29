@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CentOS 一键部署：安装 Nginx、拉取静态快照、原子切换版本并开放独立端口。
+# CentOS 一键部署：使用隔离的 Nginx 服务发布静态快照，不影响系统已有的 80/443 服务。
 
 set -Eeuo pipefail
 
@@ -11,7 +11,10 @@ APP_NAME="${APP_NAME:-vue_doubao_xl}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/var/www/${APP_NAME}}"
 RELEASES_DIR="${DEPLOY_ROOT}/releases"
 CURRENT_LINK="${DEPLOY_ROOT}/current"
-NGINX_CONF="/etc/nginx/conf.d/${APP_NAME}.conf"
+SERVICE_ROOT="/etc/${APP_NAME}"
+NGINX_CONF="${SERVICE_ROOT}/nginx.conf"
+SYSTEMD_UNIT="/etc/systemd/system/${APP_NAME}.service"
+OLD_NGINX_CONF="/etc/nginx/conf.d/${APP_NAME}.conf"
 RELEASE_ID="$(date +%Y%m%d%H%M%S)"
 RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
 WORK_DIR="$(mktemp -d)"
@@ -59,29 +62,66 @@ ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}.next"
 mv -Tf "${CURRENT_LINK}.next" "${CURRENT_LINK}"
 
 echo "[4/6] 配置 Nginx..."
+install -d -m 0755 "${SERVICE_ROOT}"
 cat >"${NGINX_CONF}" <<EOF
-server {
-    listen ${APP_PORT};
-    listen [::]:${APP_PORT};
-    server_name ${PUBLIC_IP} _;
+worker_processes auto;
+pid /run/${APP_NAME}.pid;
+error_log /var/log/nginx/${APP_NAME}-error.log warn;
 
-    root ${CURRENT_LINK};
-    index index.html;
+events {
+    worker_connections 1024;
+}
 
-    location / {
-        try_files \$uri \$uri/ /index.html;
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log /var/log/nginx/${APP_NAME}-access.log;
+    sendfile on;
+
+    server {
+        listen ${APP_PORT};
+        listen [::]:${APP_PORT};
+        server_name ${PUBLIC_IP} _;
+
+        root ${CURRENT_LINK};
+        index index.html;
+
+        location / {
+            try_files \$uri \$uri/ /index.html;
+        }
+
+        location /dashboard-assets/ {
+            try_files \$uri =404;
+            expires 7d;
+            add_header Cache-Control "public, immutable";
+        }
+
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
     }
-
-    location /dashboard-assets/ {
-        try_files \$uri =404;
-        expires 7d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
 }
 EOF
+
+cat >"${SYSTEMD_UNIT}" <<EOF
+[Unit]
+Description=Vue DouBao XL isolated dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/sbin/nginx -t -c ${NGINX_CONF}
+ExecStart=/usr/sbin/nginx -c ${NGINX_CONF} -g "daemon off;"
+ExecReload=/bin/kill -s HUP \$MAINPID
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 清理由旧版脚本创建的 conf.d 配置；不删除或修改任何其他 Nginx 站点。
+rm -f -- "${OLD_NGINX_CONF}"
 
 if command -v getenforce >/dev/null 2>&1 && [[ "$(getenforce)" != "Disabled" ]]; then
   if ! command -v semanage >/dev/null 2>&1; then
@@ -94,12 +134,13 @@ if command -v getenforce >/dev/null 2>&1 && [[ "$(getenforce)" != "Disabled" ]];
   fi
 fi
 
-nginx -t
-systemctl enable nginx
-if ! systemctl restart nginx; then
-  echo "Nginx 启动失败，以下是服务日志："
-  systemctl status nginx --no-pager -l || true
-  journalctl -u nginx --no-pager -n 50 || true
+nginx -t -c "${NGINX_CONF}"
+systemctl daemon-reload
+systemctl enable "${APP_NAME}.service"
+if ! systemctl restart "${APP_NAME}.service"; then
+  echo "独立面板服务启动失败，以下是服务日志："
+  systemctl status "${APP_NAME}.service" --no-pager -l || true
+  journalctl -u "${APP_NAME}.service" --no-pager -n 50 || true
   exit 1
 fi
 
@@ -123,6 +164,6 @@ for _ in {1..15}; do
   sleep 1
 done
 
-echo "Nginx 已启动，但本机健康检查失败。"
-journalctl -u nginx --no-pager -n 50 || true
+echo "独立面板服务已启动，但本机健康检查失败。"
+journalctl -u "${APP_NAME}.service" --no-pager -n 50 || true
 exit 1
