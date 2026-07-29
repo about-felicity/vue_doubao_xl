@@ -34,6 +34,22 @@ sudo env APP_PORT=8768 bash /tmp/deploy_vue_doubao_xl.sh
 5. 配置 SPA 回退、静态资源缓存、SELinux 端口权限和 `8768/tcp` 防火墙规则。
 6. 启动独立服务并在服务器本机执行健康检查。
 
+## 绑定到 1any.top/customXL
+
+确认不再使用占用 443 的 x-ui/Xray 后执行：
+
+```bash
+sudo bash bind_customxl_https.sh
+```
+
+脚本会备份 `/etc/nginx/nginx.conf`，停止并禁用 x-ui/Xray，在现有
+`1any.top:443` 站点中加入 `/customXL/` 静态面板路径，然后启动系统 Nginx。
+任一步骤失败都会恢复 Nginx 配置并重新启动原来的 x-ui/Xray。
+
+绑定完成后访问：
+
+<https://1any.top/customXL/>
+
 可覆盖参数：
 
 ```bash
