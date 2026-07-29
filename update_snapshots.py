@@ -84,6 +84,17 @@ def validate_snapshots(snapshots, questions):
             raise RuntimeError(
                 f"{key}: 媒体与品牌分类发生冲突 {', '.join(conflicts)}，已停止发布。"
             )
+        product_names = {
+            normalize_name(item.get("name"))
+            for item in payload.get("products", {}).get("by_product", [])
+            if normalize_name(item.get("name"))
+        }
+        product_conflicts = sorted(product_names & brand_names)
+        if product_conflicts:
+            raise RuntimeError(
+                f"{key}: 品牌与具体门店/服务完全重复 "
+                f"{', '.join(product_conflicts)}，已停止发布。"
+            )
         if key == "__all__":
             continue
         if payload.get("products", {}).get("total_product_runs", 0) < payload.get("total_runs", 0):
