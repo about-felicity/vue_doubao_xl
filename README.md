@@ -13,7 +13,7 @@
 
 部署完成后访问：
 
-<http://117.55.234.72/>
+<http://117.55.234.72:8768/>
 
 ## CentOS 一键部署
 
@@ -22,7 +22,7 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/about-felicity/vue_doubao_xl/main/deploy_centos.sh \
   -o /tmp/deploy_vue_doubao_xl.sh
-sudo bash /tmp/deploy_vue_doubao_xl.sh
+sudo env APP_PORT=8768 bash /tmp/deploy_vue_doubao_xl.sh
 ```
 
 脚本会自动：
@@ -31,13 +31,13 @@ sudo bash /tmp/deploy_vue_doubao_xl.sh
 2. 拉取本仓库最新 `main` 分支。
 3. 将 `dist` 发布到带时间戳的版本目录并原子切换。
 4. 配置 Nginx SPA 回退和静态资源缓存。
-5. 启动 Nginx，并在 firewalld 运行时放行 HTTP。
+5. 启动 Nginx，并在 firewalld 运行时放行独立的 `8768/tcp` 端口。
 6. 在服务器本机执行健康检查。
 
 可覆盖参数：
 
 ```bash
-sudo env PUBLIC_IP=117.55.234.72 BRANCH=main \
+sudo env PUBLIC_IP=117.55.234.72 APP_PORT=8768 BRANCH=main \
   REPO_URL=https://github.com/about-felicity/vue_doubao_xl.git \
   bash /tmp/deploy_vue_doubao_xl.sh
 ```
@@ -47,7 +47,7 @@ sudo env PUBLIC_IP=117.55.234.72 BRANCH=main \
 本机已配置 SSH 登录后，在 PowerShell 执行：
 
 ```powershell
-.\deploy_to_public.ps1 -User root
+.\deploy_to_public.ps1 -User root -AppPort 8768
 ```
 
 指定私钥或 SSH 端口：
@@ -56,7 +56,8 @@ sudo env PUBLIC_IP=117.55.234.72 BRANCH=main \
 .\deploy_to_public.ps1 `
   -User root `
   -Key "$env:USERPROFILE\.ssh\id_rsa" `
-  -SshPort 22
+  -SshPort 22 `
+  -AppPort 8768
 ```
 
 脚本不会保存或上传 SSH 密码、私钥。

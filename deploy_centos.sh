@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# CentOS 一键部署：安装 Nginx、拉取静态快照、原子切换版本并开放公网 HTTP。
+# CentOS 一键部署：安装 Nginx、拉取静态快照、原子切换版本并开放独立端口。
 
 set -Eeuo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/about-felicity/vue_doubao_xl.git}"
 BRANCH="${BRANCH:-main}"
 PUBLIC_IP="${PUBLIC_IP:-117.55.234.72}"
+APP_PORT="${APP_PORT:-8768}"
 APP_NAME="${APP_NAME:-vue_doubao_xl}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/var/www/${APP_NAME}}"
 RELEASES_DIR="${DEPLOY_ROOT}/releases"
@@ -20,6 +21,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ ! "${APP_PORT}" =~ ^[0-9]+$ ]] || (( APP_PORT < 1024 || APP_PORT > 65535 )); then
+  echo "APP_PORT 必须是 1024-65535 之间的端口号。"
+  exit 1
+fi
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "请使用 root 运行：sudo bash deploy_centos.sh"
   exit 1
@@ -56,8 +61,8 @@ mv -Tf "${CURRENT_LINK}.next" "${CURRENT_LINK}"
 echo "[4/6] 配置 Nginx..."
 cat >"${NGINX_CONF}" <<EOF
 server {
-    listen 80;
-    listen [::]:80;
+    listen ${APP_PORT};
+    listen [::]:${APP_PORT};
     server_name ${PUBLIC_IP} _;
 
     root ${CURRENT_LINK};
@@ -82,9 +87,9 @@ nginx -t
 systemctl enable nginx
 systemctl restart nginx
 
-echo "[5/6] 放行 HTTP 端口..."
+echo "[5/6] 放行 ${APP_PORT}/tcp 端口..."
 if systemctl is-active --quiet firewalld 2>/dev/null; then
-  firewall-cmd --permanent --add-service=http
+  firewall-cmd --permanent --add-port="${APP_PORT}/tcp"
   firewall-cmd --reload
 fi
 if command -v restorecon >/dev/null 2>&1; then
@@ -94,8 +99,8 @@ fi
 echo "[6/6] 健康检查..."
 for _ in {1..15}; do
   if curl --fail --silent --show-error --max-time 3 \
-    -H "Host: ${PUBLIC_IP}" http://127.0.0.1/ >/dev/null; then
-    echo "部署成功：http://${PUBLIC_IP}/"
+    -H "Host: ${PUBLIC_IP}" "http://127.0.0.1:${APP_PORT}/" >/dev/null; then
+    echo "部署成功：http://${PUBLIC_IP}:${APP_PORT}/"
     echo "当前版本：${RELEASE_ID}"
     exit 0
   fi

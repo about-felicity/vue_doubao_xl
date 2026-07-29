@@ -3,6 +3,7 @@ param(
     [string]$User = "root",
     [string]$Key = "",
     [int]$SshPort = 22,
+    [int]$AppPort = 8768,
     [string]$Branch = "main"
 )
 
@@ -26,9 +27,9 @@ tmp_script=`$(mktemp)
 curl -fsSL '$RawScript' -o "`$tmp_script"
 chmod +x "`$tmp_script"
 if [ "`$(id -u)" -eq 0 ]; then
-  PUBLIC_IP='$HostIP' REPO_URL='$RepoUrl' BRANCH='$Branch' bash "`$tmp_script"
+  PUBLIC_IP='$HostIP' APP_PORT='$AppPort' REPO_URL='$RepoUrl' BRANCH='$Branch' bash "`$tmp_script"
 else
-  sudo env PUBLIC_IP='$HostIP' REPO_URL='$RepoUrl' BRANCH='$Branch' bash "`$tmp_script"
+  sudo env PUBLIC_IP='$HostIP' APP_PORT='$AppPort' REPO_URL='$RepoUrl' BRANCH='$Branch' bash "`$tmp_script"
 fi
 rm -f "`$tmp_script"
 "@
@@ -39,7 +40,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "远程部署失败，SSH 退出码：$LASTEXITCODE"
 }
 
-$url = "http://$HostIP/"
+$url = "http://$HostIP`:$AppPort/"
 Write-Host "正在检查公网地址 $url ..." -ForegroundColor Cyan
 $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 15
 if ($response.StatusCode -ne 200) {
