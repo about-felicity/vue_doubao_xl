@@ -134,7 +134,7 @@ systemctl reload nginx.service
 
 echo "验证保留路径..."
 custom_code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  --max-time 8 --resolve "${DOMAIN}:443:127.0.0.1" \
+  --max-time 8 --noproxy '*' --resolve "${DOMAIN}:443:127.0.0.1" \
   "https://${DOMAIN}${URL_PREFIX}/")"
 if [[ "${custom_code}" != "200" ]]; then
   echo "${URL_PREFIX}/ 返回 ${custom_code}，预期为 200。"
@@ -143,7 +143,7 @@ fi
 
 for blocked_path in / /agent /agent-api/ /api/ /data/videos/; do
   code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    --max-time 8 --resolve "${DOMAIN}:443:127.0.0.1" \
+    --max-time 8 --noproxy '*' --resolve "${DOMAIN}:443:127.0.0.1" \
     "https://${DOMAIN}${blocked_path}")"
   if [[ "${code}" != "403" ]]; then
     echo "${blocked_path} 返回 ${code}，预期为 403。"

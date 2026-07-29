@@ -192,6 +192,7 @@ fi
 echo "检查本机 HTTPS 路径..."
 for _ in {1..15}; do
   if curl --fail --silent --show-error --max-time 5 \
+    --noproxy '*' \
     --resolve "${DOMAIN}:443:127.0.0.1" \
     "https://${DOMAIN}${URL_PREFIX}/" >/dev/null; then
     trap - ERR
