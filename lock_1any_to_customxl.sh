@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# 限制 1any.top：仅保留 /customXL/，关闭该域名上的其他 Web 路径。
+# 限制 1any.top：仅保留两个客户面板路径，关闭该域名上的其他 Web 路径。
 
 set -Eeuo pipefail
 
 DOMAIN="${DOMAIN:-1any.top}"
 URL_PREFIX="${URL_PREFIX:-/customXL}"
+EXTRA_PREFIX="${EXTRA_PREFIX:-/custombjp}"
 NGINX_CONF="${NGINX_CONF:-/etc/nginx/nginx.conf}"
 BACKUP_DIR="${BACKUP_DIR:-/root/vue_doubao_xl_backups}"
 BACKUP_FILE="${BACKUP_DIR}/nginx.conf.lock.$(date +%Y%m%d%H%M%S).bak"
@@ -16,6 +17,10 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 if [[ ! "${URL_PREFIX}" =~ ^/[A-Za-z0-9._~-]+$ ]]; then
   echo "URL_PREFIX 必须是类似 /customXL 的单层安全路径。"
+  exit 1
+fi
+if [[ ! "${EXTRA_PREFIX}" =~ ^/[A-Za-z0-9._~-]+$ ]]; then
+  echo "EXTRA_PREFIX 必须是类似 /custombjp 的单层安全路径。"
   exit 1
 fi
 if [[ ! "${DOMAIN}" =~ ^[A-Za-z0-9.-]+$ ]]; then
@@ -48,7 +53,7 @@ rollback() {
 }
 trap rollback ERR
 
-export DOMAIN URL_PREFIX NGINX_CONF
+export DOMAIN URL_PREFIX EXTRA_PREFIX NGINX_CONF
 python3 <<'PY'
 import os
 import re
@@ -57,6 +62,7 @@ from pathlib import Path
 path = Path(os.environ["NGINX_CONF"])
 domain = os.environ["DOMAIN"]
 prefix = os.environ["URL_PREFIX"]
+extra_prefix = os.environ["EXTRA_PREFIX"]
 text = path.read_text(encoding="utf-8")
 
 begin = "        # BEGIN CUSTOMXL ONLY"
@@ -118,8 +124,8 @@ if len(matches) != 1:
 opening, _ = matches[0]
 managed = f"""
 {begin}
-        # 域名只允许面板路径；403 不会触发现有的 404 error_page 内部跳转。
-        if ($uri !~ "^{re.escape(prefix)}(?:/|$)") {{
+        # 域名只允许两个客户面板路径；403 不会触发现有的 404 error_page 内部跳转。
+        if ($uri !~ "^(?:{re.escape(prefix)}|{re.escape(extra_prefix)})(?:/|$)") {{
             return 403;
         }}
 {end}
