@@ -32,10 +32,10 @@ fi
 
 install_packages() {
   if command -v dnf >/dev/null 2>&1; then
-    dnf install -y nginx git curl
+    dnf install -y nginx git curl policycoreutils-python-utils
   elif command -v yum >/dev/null 2>&1; then
     yum install -y epel-release || true
-    yum install -y nginx git curl
+    yum install -y nginx git curl policycoreutils-python-utils
   else
     echo "未找到 dnf/yum；该脚本仅支持 CentOS/RHEL 系统。"
     exit 1
@@ -83,9 +83,25 @@ server {
 }
 EOF
 
+if command -v getenforce >/dev/null 2>&1 && [[ "$(getenforce)" != "Disabled" ]]; then
+  if ! command -v semanage >/dev/null 2>&1; then
+    echo "SELinux 已启用，但没有 semanage 命令，无法授权 Nginx 监听 ${APP_PORT}。"
+    exit 1
+  fi
+  if ! semanage port -l | awk '$1 == "http_port_t" { print $0 }' | grep -Eq "(^|[ ,])${APP_PORT}([ ,]|$|-)"; then
+    semanage port -a -t http_port_t -p tcp "${APP_PORT}" 2>/dev/null \
+      || semanage port -m -t http_port_t -p tcp "${APP_PORT}"
+  fi
+fi
+
 nginx -t
 systemctl enable nginx
-systemctl restart nginx
+if ! systemctl restart nginx; then
+  echo "Nginx 启动失败，以下是服务日志："
+  systemctl status nginx --no-pager -l || true
+  journalctl -u nginx --no-pager -n 50 || true
+  exit 1
+fi
 
 echo "[5/6] 放行 ${APP_PORT}/tcp 端口..."
 if systemctl is-active --quiet firewalld 2>/dev/null; then

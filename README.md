@@ -27,11 +27,11 @@ sudo env APP_PORT=8768 bash /tmp/deploy_vue_doubao_xl.sh
 
 脚本会自动：
 
-1. 使用 `dnf` 或 `yum` 安装 Nginx、Git、curl。
+1. 使用 `dnf` 或 `yum` 安装 Nginx、Git、curl 和 SELinux 端口管理工具。
 2. 拉取本仓库最新 `main` 分支。
 3. 将 `dist` 发布到带时间戳的版本目录并原子切换。
 4. 配置 Nginx SPA 回退和静态资源缓存。
-5. 启动 Nginx，并在 firewalld 运行时放行独立的 `8768/tcp` 端口。
+5. 为 Nginx 注册 SELinux 非标准 HTTP 端口，并在 firewalld 运行时放行 `8768/tcp`。
 6. 在服务器本机执行健康检查。
 
 可覆盖参数：
